@@ -19,7 +19,7 @@ if (config.use_env_variable) {
 }
 
 // 4. Importar e INICIALIZAR tu modelo 'QuestionAnswer' llamando a la función
-const QuestionAnswerModel = require('./QuestionAnswer.js')(sequelize);
+const QuestionAnswerModel = require('./QuestionAnswer.js')(sequelize, Sequelize.DataTypes);
 
 // 5. Agregar el modelo al objeto `db` para que sea accesible como `db.QuestionAnswer`
 db[QuestionAnswerModel.name] = QuestionAnswerModel;

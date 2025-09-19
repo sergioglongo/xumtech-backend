@@ -1,7 +1,5 @@
 // models/QuestionAnswer.js
-module.exports = (sequelize) => {
-  const { DataTypes } = require('sequelize');
-
+module.exports = (sequelize, DataTypes) => {
   const QuestionAnswer = sequelize.define('QuestionAnswer', {
     identifier: {
       type: DataTypes.INTEGER,
@@ -18,12 +16,6 @@ module.exports = (sequelize) => {
       type: DataTypes.TEXT,
       allowNull: false,
     },
-    synonyms: {
-      type: DataTypes.JSONB,
-      allowNull: true,
-      defaultValue: {},
-      comment: 'JSONB Ejemplo: {"cuesta": ["costo", "valor"], "servicio": ["curso", "producto"]}'
-    }
   }, {
     tableName: 'question_answer_pairs',
     timestamps: true,

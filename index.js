@@ -16,10 +16,11 @@ app.use('/api', routes);
 // Start server and sync database
 async function startServer() {
   try {
-    if (process.env.NODE_ENV !== 'production') {
-      await db.sequelize.sync({ alter: true }); 
-      console.log('All models were synchronized successfully.');
-    }
+    // ADVERTENCIA: Sincronizar la base de datos en cada inicio en producción puede ser riesgoso.
+    // Se recomienda usar migraciones para un control más seguro del esquema.
+    await db.sequelize.sync({ alter: true });
+    console.log('All models were synchronized successfully.');
+
     app.listen(port, () => {
       console.log(`Server is running on port ${port}`);
     });
