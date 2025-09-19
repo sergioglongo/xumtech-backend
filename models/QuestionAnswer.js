@@ -16,6 +16,12 @@ module.exports = (sequelize, DataTypes) => {
       type: DataTypes.TEXT,
       allowNull: false,
     },
+    synonyms: {
+      type: DataTypes.JSONB,
+      allowNull: true,
+      defaultValue: {},
+      comment: 'JSONB Ejemplo: {"cuesta": ["costo", "valor"], "servicio": ["curso", "producto"]}'
+    }
   }, {
     tableName: 'question_answer_pairs',
     timestamps: true,
