@@ -1,5 +1,3 @@
-// tools/synonymExpander.js
-
 /**
  * Expande el texto del usuario reemplazando sinónimos por sus palabras canónicas.
  * 
@@ -12,44 +10,34 @@ function phraseWithSynonyms(userText, synonymsMap) {
   if (!synonymsMap || typeof synonymsMap !== 'object') {
     return userText;
   }
-
-  // Paso 1: Crear un mapa INVERSO para búsqueda rápida: sinónimo -> palabra canónica
-  const reverseSynonymMap = {};
+  
+  // Paso 1: Crear un mapa de reemplazo para búsqueda rápida: palabra_a_buscar -> palabra_canónica
+  // Este mapa incluirá tanto los sinónimos como las propias palabras canónicas.
+  const replacementMap = {};
   for (const [canonicalWord, synonymsArray] of Object.entries(synonymsMap)) {
+    const lowerCanonical = canonicalWord.toLowerCase();
+    
+    // La palabra canónica también apunta a sí misma para normalizarla (ej. mayúsculas/minúsculas)
+    replacementMap[lowerCanonical] = lowerCanonical;
+
     if (Array.isArray(synonymsArray)) {
       for (const synonym of synonymsArray) {
         if (typeof synonym === 'string') {
-          reverseSynonymMap[synonym.toLowerCase()] = canonicalWord.toLowerCase();
+          replacementMap[synonym.toLowerCase()] = lowerCanonical;
         }
       }
     }
   }
 
-  // Paso 2: Dividir el texto del usuario en palabras
-  const words = userText.split(/\s+/); // Divide por espacios
+  // Paso 2: Reemplazar todas las ocurrencias usando una expresión regular.
+  // Esto es más eficiente que dividir en palabras y procesar una por una.
+  // \b asegura que solo reemplacemos palabras completas.
+  const allWordsToReplace = Object.keys(replacementMap).join('|');
+  const regex = new RegExp(`\\b(${allWordsToReplace})\\b`, 'gi');
 
-  // Paso 3: Procesar cada palabra
-  const expandedWords = words.map(word => {
-    // Limpiar la palabra: quitar signos de puntuación al inicio y final
-    const cleanWord = word.replace(/^[^\w]+|[^\w]+$/g, '');
-
-    // Buscar si la palabra "limpia" está en el mapa inverso de sinónimos
-    const canonicalReplacement = reverseSynonymMap[cleanWord.toLowerCase()];
-
-    if (canonicalReplacement) {
-      // Si encontramos un reemplazo, lo aplicamos
-      // Mantenemos la puntuación original alrededor de la palabra
-      const prefix = word.match(/^[^\w]*/)[0] || ''; // Puntuación al inicio
-      const suffix = word.match(/[^\w]*$/)[0] || ''; // Puntuación al final
-      return prefix + canonicalReplacement + suffix;
-    }
-
-    // Si no hay reemplazo, devolvemos la palabra original
-    return word;
+  return userText.replace(regex, (matchedWord) => {
+    return replacementMap[matchedWord.toLowerCase()];
   });
-
-  // Paso 4: Reconstruir y devolver el texto
-  return expandedWords.join(' ');
 }
 
 module.exports = { phraseWithSynonyms };

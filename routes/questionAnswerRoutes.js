@@ -21,6 +21,9 @@ router.get('/:id', questionAnswerController.getQuestionAnswerById);
 // Actualizar un registro por ID
 router.put('/:id', questionAnswerController.updateQuestionAnswer);
 
+// Añadir o actualizar sinónimos para un registro por ID
+router.patch('/:id/synonyms', questionAnswerController.addSynonyms);
+
 // Eliminar un registro por ID
 router.delete('/:id', questionAnswerController.deleteQuestionAnswer);
 
