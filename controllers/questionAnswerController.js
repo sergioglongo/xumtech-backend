@@ -181,9 +181,8 @@ exports.findBestAnswer = async (req, res) => {
 
       for (const qa of allQuestionAnswer) {
         const synonymsMap = qa.synonyms || {};
-        const expandedUserQuestionForKeywords = phraseWithSynonyms(normalizedUserQuestion, synonymsMap);
-
-        if (checkKeywords(expandedUserQuestionForKeywords, synonymsMap)) {
+        
+        if (checkKeywords(normalizedUserQuestion, synonymsMap)) {
           console.log("Respuesta encontrada por palabras clave:", qa.answer_text);
           return res.status(200).json({ answer: qa.answer_text, matchMethod: 'keywords' });
         }

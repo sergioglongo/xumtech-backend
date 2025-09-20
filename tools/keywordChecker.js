@@ -7,20 +7,24 @@ function checkKeywords(userText, originalSynonymsMap) {
   if (!originalSynonymsMap || keywords.length < 2) {
     return false;
   }
-
+  
   const normalizedSynonymsMap = {};
   for (const [key, values] of Object.entries(originalSynonymsMap)) {
     const normalizedKey = normalizeText(key);
     normalizedSynonymsMap[normalizedKey] = values.map(v => normalizeText(v));
   }
 
-  const userWords = new Set(userText.split(/\s+/));
-  return Object.keys(normalizedSynonymsMap).every(normalizedCanonicalWord => {
+  let matchesCount = 0;
+  for (const normalizedCanonicalWord of Object.keys(normalizedSynonymsMap)) {
     const normalizedSynonyms = normalizedSynonymsMap[normalizedCanonicalWord] || [];
     const wordsToSearch = [normalizedCanonicalWord, ...normalizedSynonyms];
-    
-    return wordsToSearch.some(word => userWords.has(word));
-  });
+
+    if (wordsToSearch.some(word => userText.includes(word))) {
+      matchesCount++;
+    }
+  }
+
+  return matchesCount >= 2;
 }
 
 module.exports = { checkKeywords };
