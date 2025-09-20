@@ -2,9 +2,10 @@
 
 const db = require('../models');
 const { calculateLevenshteinDistance } = require('../tools/levenshtein');
+const { checkKeywords } = require('../tools/keywordChecker');
 const { phraseWithSynonyms } = require('../tools/phraseWithSynonyms');
+const { normalizeText } = require('../tools/textTools');
 
-// POST /api/qa - Crear un nuevo registro
 exports.createQuestionAnswer = async (req, res) => {
   try {
     const { question_text, answer_text, synonyms } = req.body;
@@ -35,7 +36,6 @@ exports.createQuestionAnswer = async (req, res) => {
   }
 };
 
-// GET /api/qa - Obtener todos los registros
 exports.getAllQuestionAnswers = async (req, res) => {
   try {
     const allQuestionAnswer = await db.QuestionAnswer.findAll();
@@ -46,7 +46,6 @@ exports.getAllQuestionAnswers = async (req, res) => {
   }
 };
 
-// GET /api/qa/:id - Obtener un registro por su ID
 exports.getQuestionAnswerById = async (req, res) => {
   try {
     const { id } = req.params;
@@ -61,7 +60,6 @@ exports.getQuestionAnswerById = async (req, res) => {
   }
 };
 
-// PUT /api/qa/:id - Actualizar un registro por su ID
 exports.updateQuestionAnswer = async (req, res) => {
   try {
     const { id } = req.params;
@@ -84,7 +82,43 @@ exports.updateQuestionAnswer = async (req, res) => {
   }
 };
 
-// DELETE /api/qa/:id - Borrar un registro por su ID
+exports.addSynonyms = async (req, res) => {
+  try {
+    const { id } = req.params;
+    const newSynonymsData = req.body;
+
+    if (!newSynonymsData || typeof newSynonymsData !== 'object' || Array.isArray(newSynonymsData) || Object.keys(newSynonymsData).length === 0) {
+      return res.status(400).json({ error: 'Formato incorrecto' });
+    }
+
+    const qa = await db.QuestionAnswer.findByPk(id);
+    if (!qa) {
+      return res.status(404).json({ error: 'Registro no encontrado.' });
+    }
+
+    const currentSynonyms = qa.synonyms || {};
+
+    for (const [keyword, synonyms] of Object.entries(newSynonymsData)) {
+      if (Array.isArray(synonyms)) {
+        const existingSyns = currentSynonyms[keyword] || [];
+        const updatedSyns = [...new Set([...existingSyns, ...synonyms])];
+        currentSynonyms[keyword] = updatedSyns;
+      }
+    }
+
+    qa.synonyms = currentSynonyms;
+    qa.changed('synonyms', true);
+
+    await qa.save();
+
+    res.status(200).json({ message: 'Sinónimos añadidos/actualizados exitosamente.', data: qa });
+
+  } catch (error) {
+    console.error('Error al añadir sinónimos:', error);
+    res.status(500).json({ error: 'Error interno del servidor al añadir sinónimos.' });
+  }
+};
+
 exports.deleteQuestionAnswer = async (req, res) => {
   try {
     const { id } = req.params;
@@ -94,14 +128,13 @@ exports.deleteQuestionAnswer = async (req, res) => {
     }
 
     await qa.destroy();
-    res.status(204).send(); // 204 No Content: Éxito sin devolver contenido
+    res.status(204).send();
   } catch (error) {
     console.error('Error al eliminar QuestionAnswer:', error);
     res.status(500).json({ error: 'Error al eliminar el registro.' });
   }
 };
 
-// GET /api/question-answer/question?q=... - Encontrar la mejor respuesta
 exports.findBestAnswer = async (req, res) => {
   const { question } = req.query;
   console.log("question recibida", question);
@@ -111,11 +144,8 @@ exports.findBestAnswer = async (req, res) => {
   }
 
   try {
-    // 1. Obtener todas las preguntas y sus sinónimos de la base de datos
-    const allQuestionAnswer = await db.QuestionAnswer.findAll({
-      attributes: ['identifier', 'question_text', 'answer_text', 'synonyms']
-    });
-
+    const allQuestionAnswer = await db.QuestionAnswer.findAll({ raw: true });
+    
     if (allQuestionAnswer.length === 0) {
       return res.status(404).json({ message: 'No hay preguntas en la base de datos para comparar.' });
     }
@@ -126,37 +156,40 @@ exports.findBestAnswer = async (req, res) => {
       originalQuestion: null,
     };
 
-    const normalizedUserQuestion = question.toLowerCase().trim();
+    const normalizedUserQuestion = normalizeText(question);
 
-    // 2. Iterar sobre cada registro de la BD para encontrar la mejor coincidencia
     for (const qa of allQuestionAnswer) {
       const synonymsMap = qa.synonyms || {};
       const expandedUserQuestion = phraseWithSynonyms(normalizedUserQuestion, synonymsMap);
-      const normalizedDbQuestion = qa.question_text.toLowerCase().trim();
-
-      // 3. Calcular la distancia de Levenshtein
+      const normalizedDbQuestion = normalizeText(qa.question_text);
       const distance = calculateLevenshteinDistance(expandedUserQuestion, normalizedDbQuestion);
 
-      // 4. Actualizar la mejor coincidencia si encontramos una mejor
       if (distance < bestMatch.distance) {
         bestMatch = { distance, answer: qa.answer_text, originalQuestion: qa.question_text };
       }
 
-      // Si la distancia es 0, es una coincidencia perfecta, no necesitamos seguir buscando.
       if (distance === 0) break;
     }
-
-    // 5. Decidir si la mejor coincidencia es "suficientemente buena"
-    // Umbral: la distancia debe ser menor o igual al 25% de la longitud de la pregunta encontrada.
-    const threshold = bestMatch.originalQuestion ? Math.floor(bestMatch.originalQuestion.length * 0.55) : Infinity;
+    const threshold = bestMatch.originalQuestion ? Math.floor(bestMatch.originalQuestion.length * 0.35) : Infinity;
 
     if (bestMatch.answer && bestMatch.distance <= threshold) {
-      console.log("respuesta mejor", bestMatch.answer);
+      console.log("respuesta mejor por levenshtein", bestMatch.answer);
       
-      return res.status(200).json({ answer: bestMatch.answer });
+      return res.status(200).json({ answer: bestMatch.answer, matchMethod: 'levenshtein' });
     } else {
-      // Si no se encontró una coincidencia suficientemente buena
-      console.log("no conseguida mejor respuesta");
+      console.log("Coincidencia por Levenshtein no es suficientemente buena. Intentando con palabras clave...");
+
+      for (const qa of allQuestionAnswer) {
+        const synonymsMap = qa.synonyms || {};
+        const expandedUserQuestionForKeywords = phraseWithSynonyms(normalizedUserQuestion, synonymsMap);
+
+        if (checkKeywords(expandedUserQuestionForKeywords, synonymsMap)) {
+          console.log("Respuesta encontrada por palabras clave:", qa.answer_text);
+          return res.status(200).json({ answer: qa.answer_text, matchMethod: 'keywords' });
+        }
+      }
+
+      console.log("No se encontró ninguna respuesta coincidente.");
       
       return res.status(404).json({
         message: 'No pude encontrar una respuesta precisa. ¿Podrías reformular tu pregunta?'
