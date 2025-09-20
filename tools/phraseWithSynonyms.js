@@ -1,4 +1,4 @@
-function phraseWithSynonyms(userText, synonymsMap) {
+const phraseWithSynonyms = (userText, synonymsMap) => {
   if (!synonymsMap || typeof synonymsMap !== 'object') {
     return userText;
   }
